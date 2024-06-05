@@ -5,10 +5,11 @@ from datetime import datetime
 import time
 
 
-def scrape_website(url, latest_timestamp):
+def scrape_website(url, latest_timestamp, champions):
     driver = webdriver.Chrome()
     driver.get(url)
-    list = []
+    rank_list = []
+    not_exist_hero = []
     ranks = ['diamond', 'master', 'grandmaster', 'challenger']
     roles = ['top', 'jungle', 'mid', 'bot', 'sup']
     elements = driver.find_elements(By.CLASS_NAME, "btn-dan")
@@ -33,12 +34,12 @@ def scrape_website(url, latest_timestamp):
             date_text = clean_text(date_span.text)
             if (date_text == ""):
                 print('date not found')
-                return
+                return ([], [])
             date_object = datetime.strptime(date_text, "%Y-%m-%d")
             date_timestamp = datetime.timestamp(date_object)
-            if (date_timestamp <= latest_timestamp):
+            if (latest_timestamp and date_timestamp <= latest_timestamp):
                 print('data already scraped')
-                return list
+                return (rank_list,[])
 
             ul = soup.find('ul', {'id': 'data-list'})
             li_tags = ul.find_all('li')
@@ -48,22 +49,33 @@ def scrape_website(url, latest_timestamp):
                 data = {}
                 divs = li.find_all('div')
 
+                champ_name = clean_text(divs[2].text)
+                champ = [
+                    champ for champ in champions if champ[1] == champ_name]
+                if champ is None:
+                    new_champ = {}
+                    new_champ['chinese'] = champ_name
+                    new_champ['id'] = champ_name
+                    new_champ['img_url'] = divs[3].find('img')['src']
+                    not_exist_hero.append(new_champ)
+                    champ = [(champ_name)]
+                champ_id = champ[0][0]
+
                 data['time_stamp'] = date_timestamp
                 data['date'] = date_text
                 data['rank_number'] = int(clean_text(divs[0].text))
                 data['role'] = role
-                data['hero_img_url'] = divs[3].find('img')['src']
-                data['hero_name'] = clean_text(divs[2].text)
+                data['champ_id'] = champ_id
                 data['rank_filter'] = ranks[element_index]
                 data['win_rate'] = float(clean_text(divs[4].text))
                 data['pick_rate'] = float(clean_text(divs[5].text))
                 data['ban_rate'] = float(clean_text(divs[6].text))
                 data['created_at'] = datetime.now().timestamp()
-                list.append(data)
+                rank_list.append(data)
         element_index += 1
 
     driver.close()
-    return list
+    return (rank_list, not_exist_hero)
 
 
 def clean_text(text):
